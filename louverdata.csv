@@ -1,0 +1,13 @@
+Louver Model,Type,Front Blade,Rear Blade,Blade Pitch,Louver Depth,Airflow Velocity: 0.0,Airflow Velocity: 0.5,Airflow Velocity: 1.0,Airflow Velocity: 1.5,Airflow Velocity: 2.0,Airflow Velocity: 2.5,Airflow Velocity: 3.0,Airflow Velocity: 3.5,Airflow Coefficient,Airflow Class,Rain Defense Rating,Airflow Rating
+PL-1050,Single,Horizontal,N/A,50,121,C,D,D,D,D,D,D,D,0.419,1,Fair,Excellent
+PL-2050,Double,Horizontal,Horizontal,50,138,A,A,A,A,A,A,B,C,0.292,3,Excellent,Good
+PL-3050,Triple,Horizontal,Vertical,50,138,A,A,A,A,A,A,A,C,0.161,4,Excellent,Fair
+PL-1075,Single,Horizontal,N/A,75,127,C,D,D,D,D,D,D,D,0.423,1,Fair,Excellent
+PL-2075,Double,Horizontal,Horizontal,75,144,A,A,B,B,B,C,C,D,0.277,3,Excellent,Good
+PL-3075,Triple,Horizontal,Vertical,75,144,A,A,A,A,A,A,A,C,0.174,4,Excellent,Fair
+PL-2170,Double,Horizontal,Horizontal,70,102,A,A,A,B,C,D,D,D,0.193,4,Excellent,Fair
+PL-2150V,Double,Vertical,Vertical,50,67,A,A,A,A,A,A,D,D,0.183,4,Excellent,Fair
+PL-2250,Double,Horizontal,Horizontal,50,129,A,A,A,A,A,A,A,A,0.327,2,Excellent,Very Good
+PL-2250V,Double,Vertical,Vertical,50,129,A,A,A,A,A,A,A,A,0.326,2,Excellent,Very Good
+AC-150,Single,Horizontal,N/A,250,155,C,C,D,D,D,D,D,D,0.18,4,Fair,Fair
+AC-300,Double,Horizontal,Horizontal,300,305,C,D,D,D,D,D,D,D,0.169,4,Fair,Fair
