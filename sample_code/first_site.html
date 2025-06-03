@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Louvre Model Selector</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    :root {
+      --primary: #1E4E5F;
+      --accent: #FF6F61;
+      --background: #FAF9F8;
+      --input-bg: #F5F3F1;
+      --shadow: rgba(30, 78, 95, 0.15);
+      --text-dark: #333333;
+      --text-light: #666666;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #d7f0f5, #a7d8df);
+      color: var(--text-dark);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 2.5rem;
+      color: var(--primary);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .container {
+      display: grid;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    form.form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      background: white;
+      border-radius: 1rem;
+      padding: 2rem;
+      box-shadow: 0 6px 20px var(--shadow);
+      transition: box-shadow 0.3s ease;
+    }
+    form.form:hover {
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+    label {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      display: block;
+      color: var(--primary);
+    }
+    input, select {
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid #ccc;
+      width: 100%;
+      background-color: var(--input-bg);
+      color: var(--text-dark);
+      font-size: 1rem;
+      transition: border-color 0.3s ease;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      background-color: white;
+      box-shadow: 0 0 5px var(--accent);
+    }
+    button {
+      grid-column: span 2;
+      background-color: var(--accent);
+      color: white;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+      transition: background-color 0.3s ease;
+      user-select: none;
+    }
+    button:hover {
+      background-color: #e65a4c;
+    }
+    .results {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+    .bento {
+      background: white;
+      border-radius: 1rem;
+      padding: 2rem;
+      box-shadow: 0 6px 20px var(--shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      transition: box-shadow 0.3s ease;
+    }
+    .bento:hover {
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+    canvas {
+      max-width: 100%;
+    }
+    model-viewer {
+      width: 100%;
+      height: 300px;
+      border-radius: 1rem;
+      box-shadow: 0 6px 15px var(--shadow);
+      background-color: #f0f4f7;
+    }
+    p {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+  </style>
+</head>
+<body>
+  <h1>Louvre Model Selector</h1>
+  <div class="container">
+    <form class="form" id="inputForm">
+      <div>
+        <label for="budget">Budget</label>
+        <input type="number" id="budget" required />
+      </div>
+      <div>
+        <label for="rainfall">Expected Rainfall (mm/year)</label>
+        <input type="number" id="rainfall" />
+      </div>
+      <div>
+        <label for="airflow">Airflow Required</label>
+        <input type="number" id="airflow" />
+      </div>
+      <div>
+        <label for="coating">Coating Options</label>
+        <select id="coating">
+          <option>Standard</option>
+          <option>Anti-corrosive</option>
+          <option>UV-resistant</option>
+        </select>
+      </div>
+      <div>
+        <label for="color">Color</label>
+        <input type="text" id="color" />
+      </div>
+      <div>
+        <label for="facade">Facade Design</label>
+        <input type="text" id="facade" />
+      </div>
+      <div>
+        <label for="frame">Frame Type</label>
+        <select id="frame">
+          <option>Aluminum</option>
+          <option>Steel</option>
+          <option>Wood</option>
+        </select>
+      </div>
+      <button type="submit">Get Suggested Model</button>
+    </form>
+
+    <div class="results" id="results">
+      <div class="bento">
+        <h2 style="color: var(--primary);">Suggested Louvre Model</h2>
+        <p><strong>Model:</strong> LVR-X1</p>
+        <p><strong>Color:</strong> <span id="resultColor"></span></p>
+        <p><strong>Frame:</strong> <span id="resultFrame"></span></p>
+        <model-viewer src="https://modelviewer.dev/shared-assets/models/Astronaut.glb" alt="3D model" auto-rotate camera-controls></model-viewer>
+      </div>
+      <div class="bento">
+        <h2 style="color: var(--primary);">Performance Stats</h2>
+        <canvas id="statsChart"></canvas>
+      </div>
+      <div class="bento">
+        <h2 style="color: var(--primary);">Connect With Suppliers</h2>
+        <p>We’ve found potential suppliers for your model. Click below to get in touch.</p>
+        <button>Contact Supplier</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('inputForm');
+    const results = document.getElementById('results');
+    const resultColor = document.getElementById('resultColor');
+    const resultFrame = document.getElementById('resultFrame');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const budget = document.getElementById('budget').value;
+      const rainfall = document.getElementById('rainfall').value;
+      const airflow = document.getElementById('airflow').value;
+      const coating = document.getElementById('coating').value;
+      const color = document.getElementById('color').value;
+      const facade = document.getElementById('facade').value;
+      const frame = document.getElementById('frame').value;
+
+      if (!budget || !color || !frame) return;
+
+      resultColor.textContent = color;
+      resultFrame.textContent = frame;
+
+      results.style.display = 'grid';
+
+      new Chart(document.getElementById('statsChart'), {
+        type: 'radar',
+        data: {
+          labels: ['Airflow', 'Cost', 'Shading', 'Rainfall'],
+          datasets: [{
+            label: 'Performance',
+            data: [
+              airflow || 50,
+              100 - Math.min(budget / 10, 100),
+              80,
+              Math.min(rainfall / 10, 100)
+            ],
+            fill: true,
+            backgroundColor: 'rgba(255, 111, 97, 0.2)',
+            borderColor: 'rgba(255, 111, 97, 1)',
+            pointBackgroundColor: 'rgba(255, 111, 97, 1)'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            r: {
+              angleLines: { color: '#ccc' },
+              grid: { color: '#eee' },
+              pointLabels: { color: 'var(--primary)' },
+              ticks: { color: 'var(--text-light)', beginAtZero: true, max: 100 }
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
