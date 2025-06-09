@@ -9,6 +9,16 @@ Recommend Louver models to Users based off different parameters with integrated 
 - `requirements.txt` - Python dependencies
 - `sample_code/` - Reference code samples
 
+## Performance Optimizations
+
+The weather API has been optimized for faster data retrieval:
+
+- Reduced Earth Engine data range from 20 to 5 years for quicker queries
+- Optimized API calls with explicit band selection
+- Streamlined data processing with single reduceRegion calls
+- Implemented efficient rain class calculation per BS EN 13030:2001
+- Removed frontend fallbacks for accurate wind data display
+
 ## Setup Instructions
 
 ### 1. Google Earth Engine Authentication (Required)
