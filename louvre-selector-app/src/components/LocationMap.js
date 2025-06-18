@@ -37,8 +37,8 @@ function MapClickHandler({ onMapClick }) {
 }
 
 function LocationMap({ coordinates, location, onLocationSelect }) {
-  // Default to London if no coordinates provided
-  const position = coordinates || [51.505, -0.09];
+  // Check if we have valid coordinates
+  const hasValidCoordinates = coordinates && Array.isArray(coordinates) && coordinates.length === 2;
   
   const handleMapClick = (e) => {
     if (onLocationSelect && e && e.latlng) {
@@ -49,29 +49,37 @@ function LocationMap({ coordinates, location, onLocationSelect }) {
 
   return (
     <div className="location-map-container">
-      <MapContainer 
-        center={position} 
-        zoom={13} 
-        style={{ height: '300px', width: '100%', borderRadius: '8px' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <Marker position={position}>
-          <Popup>
-            {location || 'Selected Location'}
-          </Popup>
-        </Marker>
-        <MapUpdater center={position} />
-        {/* Use the useMapEvents hook to properly capture map clicks */}
-        {onLocationSelect && (
-          <MapClickHandler onMapClick={handleMapClick} />
-        )}
-      </MapContainer>
-      {onLocationSelect && (
-        <div className="map-instructions">
-          Click on the map to select a precise location
+      {hasValidCoordinates ? (
+        <>
+          <MapContainer 
+            center={coordinates} 
+            zoom={13} 
+            style={{ height: '300px', width: '100%', borderRadius: '8px' }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Marker position={coordinates}>
+              <Popup>
+                {location || 'Selected Location'}
+              </Popup>
+            </Marker>
+            <MapUpdater center={coordinates} />
+            {/* Use the useMapEvents hook to properly capture map clicks */}
+            {onLocationSelect && (
+              <MapClickHandler onMapClick={handleMapClick} />
+            )}
+          </MapContainer>
+          {onLocationSelect && (
+            <div className="map-instructions">
+              Click on the map to select a precise location
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="map-placeholder">
+          <p>Enter a valid location to display the map</p>
         </div>
       )}
     </div>
