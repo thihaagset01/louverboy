@@ -11,7 +11,8 @@ import math
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Allow React to call this API
+# Configure CORS to explicitly allow requests from the frontend
+CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
 
 # Initialize Flask app
 
