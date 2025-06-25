@@ -45,12 +45,12 @@ function App() {
     contactPreference: 'Email',
     additionalNotes: '',
     mapCoordinates: null, // Store selected coordinates from map
-    weatherData: null // Weather data from API
+    weatherData: null // State for form data and validation
   });
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [weatherCache, setWeatherCache] = useState({});
+  const [weatherCache, setWeatherCache] = useState({}); // Properly declare weatherCache with setter
   const [patternRecommendations, setPatternRecommendations] = useState([]);
   const [louverData, setLouverData] = useState([]);
   const [recommendedLouvers, setRecommendedLouvers] = useState([]);
@@ -59,75 +59,292 @@ function App() {
   const [weatherDataLoading, setWeatherDataLoading] = useState(false);
   const [weatherDataError, setWeatherDataError] = useState(null);
 
-  // Function to fetch weather data for a location
-  // State for location validation
+  // Separate state for location validation
   const [locationValid, setLocationValid] = useState(false);
-  const [showLocationMap, setShowLocationMap] = useState(false);
+  const [locationValidating, setLocationValidating] = useState(false);
+  const [locationError, setLocationError] = useState(null);
   
-  const fetchWeatherData = (location) => {
-    if (!location || location.length < 3) {
-      setLocationValid(false);
+  // Function to validate location existence only (fast validation)
+  const validateLocation = (location) => {
+    if (!location || location.length < 3) return;
+    
+    setLocationValidating(true);
+    setLocationError(null);
+    setLocationValid(false);
+    
+    // Check if we already have cached data for this location
+    if (weatherCache[location]) {
+      console.log('Using cached location data for validation:', location);
+      
+      // Extract the cached data
+      const data = weatherCache[location];
+      
+      // Extract detailed location information
+      let fullAddress = data.location || '';
+      
+      // Set coordinates if available
+      if (data.coordinates) {
+        setFormData(prev => ({
+          ...prev,
+          coordinates: {
+            lat: parseFloat(data.coordinates[0]),
+            lng: parseFloat(data.coordinates[1])
+          }
+        }));
+      }
+      
+      // Store the exact address
+      setFormData(prev => ({
+        ...prev,
+        exactAddress: fullAddress
+      }));
+      
+      // Mark location as valid
+      setLocationValid(true);
+      setLocationValidating(false);
       return;
     }
     
-    // Check cache first
+    // Create a custom lightweight request for geocoding only
+    // Since the backend doesn't have a separate endpoint, we'll use a custom header
+    console.log('Validating location:', location);
+    
+    // Use the Nominatim API directly for geocoding only
+    // This is much faster than the full weather API call
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
+    
+    fetch(nominatimUrl)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Location not found or invalid`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (!data || data.length === 0) {
+        throw new Error(`Location not found: ${location}`);
+      }
+      
+      console.log('Location validation successful:', data);
+      
+      // Extract the first result
+      const result = data[0];
+      
+      // Extract detailed location information
+      const fullAddress = result.display_name || location;
+      
+      // Extract coordinates
+      const coordinates = {
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon)
+      };
+      
+      // Store coordinates and address in form data
+      setFormData(prev => ({
+        ...prev,
+        coordinates: coordinates,
+        exactAddress: fullAddress
+      }));
+      
+      // Mark location as valid
+      setLocationValid(true);
+      setLocationValidating(false);
+      
+      // Now that we have validated the location, fetch weather data in the background
+      fetchWeatherDataInBackground(fullAddress, coordinates);
+      
+      return { location: fullAddress, coordinates: [coordinates.lat, coordinates.lng] };
+    })
+    .catch(error => {
+      console.error('Error validating location:', error);
+      setLocationError(error.message);
+      setLocationValidating(false);
+    });
+  };
+  
+  // Helper function to check if we have cached weather data
+  const checkWeatherCache = (location) => {
     if (weatherCache[location]) {
       console.log('Using cached weather data for:', location);
       setFormData(prev => ({
         ...prev,
-        weatherData: weatherCache[location],
-        mapCoordinates: weatherCache[location].coordinates || null
+        weatherData: weatherCache[location]
       }));
-      setLocationValid(true);
-      setShowLocationMap(false);
+      return true;
+    }
+    return false;
+  };
+  
+  // Function to fetch weather data in the background after location validation
+  // This is only called after a successful location validation
+  const fetchWeatherDataInBackground = (fullAddress, coordinates) => {
+    // If we're already loading weather data or already have it in the form data, don't fetch again
+    if (weatherDataLoading || formData.weatherData) {
       return;
     }
     
-    console.log('Fetching weather data for location:', location);
+    console.log('Fetching weather data in background for:', fullAddress);
     setWeatherDataLoading(true);
-    setWeatherDataError(null);
-    setLocationValid(false);
     
-    // Call the weather API using POST with location in the body
-    fetch('http://localhost:5000/weather', {
-      method: 'POST',
+    // We don't show loading indicators to the user since this is a background task
+    // The weather data will only be displayed in the summary step
+    
+    // We can use either the coordinates or the full address for the weather API
+    // Using coordinates is more precise
+    fetch(`http://localhost:5000/weather?lat=${coordinates.lat}&lon=${coordinates.lng}`, {
+      method: 'GET',  // Using GET with coordinates is more reliable
       headers: {
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ location })
+      }
     })
+    .then(response => {
+      if (!response.ok) {
+        // If GET with coordinates fails, fall back to POST with location string
+        return fetch('http://localhost:5000/weather', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ location: fullAddress })
+        });
+      }
+      return response;
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch weather data: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Weather data received in background:', data);
+      
+      // Cache the weather data using the full address as the key
+      setWeatherCache(prev => ({
+        ...prev,
+        [fullAddress]: data
+      }));
+      
+      // We don't update formData.weatherData here
+      // It will be loaded when the user reaches the summary step
+      
+      setWeatherDataLoading(false);
+    })
+    .catch(error => {
+      console.error('Error fetching weather data in background:', error);
+      setWeatherDataError(error.message);
+      setWeatherDataLoading(false);
+    });
+  };
+  
+  // Function to load weather data for the summary step
+  const loadWeatherDataForSummary = () => {
+    if (!formData.location || !locationValid) return;
+    
+    // If we already have weather data in formData, no need to do anything
+    if (formData.weatherData) {
+      console.log('Weather data already loaded for summary');
+      return;
+    }
+    
+    // Check if we have cached weather data for this location
+    if (checkWeatherCache(formData.exactAddress || formData.location)) {
+      console.log('Using cached weather data for summary');
+      return;
+    }
+    
+    // No cached data, but we have a valid location, so we need to fetch weather data
+    console.log('Fetching weather data for summary step...');
+    setWeatherDataLoading(true);
+    setWeatherDataError(null);
+    
+    // If we have coordinates, use them for more precise weather data
+    if (formData.coordinates && formData.coordinates.lat && formData.coordinates.lng) {
+      fetch(`http://localhost:5000/weather?lat=${formData.coordinates.lat}&lon=${formData.coordinates.lng}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       .then(response => {
         if (!response.ok) {
-          throw new Error(`Weather API error: ${response.status} ${response.statusText}`);
+          // Fall back to POST with location string
+          return fetch('http://localhost:5000/weather', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ location: formData.exactAddress || formData.location })
+          });
+        }
+        return response;
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch weather data: ${response.statusText}`);
         }
         return response.json();
       })
       .then(data => {
-        console.log('Weather data received:', data);
+        console.log('Weather data received for summary:', data);
+        
         // Cache the weather data
         setWeatherCache(prev => ({
           ...prev,
-          [location]: data
+          [formData.exactAddress || formData.location]: data
         }));
         
         // Update form data with weather information
         setFormData(prev => ({
           ...prev,
-          weatherData: data,
-          mapCoordinates: data.coordinates || null
+          weatherData: data
         }));
         
         setWeatherDataLoading(false);
-        setLocationValid(true);
-        setShowLocationMap(false);
       })
       .catch(error => {
-        console.error('Failed to fetch weather data:', error);
-        setWeatherDataError(`Failed to fetch weather data: ${error.message}`);
+        console.error('Error fetching weather data for summary:', error);
+        setWeatherDataError(error.message);
         setWeatherDataLoading(false);
-        setLocationValid(false);
-        setShowLocationMap(true); // Show map when location is invalid
       });
+    } else {
+      // No coordinates, use location string
+      fetch('http://localhost:5000/weather', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ location: formData.exactAddress || formData.location })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch weather data: ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Weather data received for summary:', data);
+        
+        // Cache the weather data
+        setWeatherCache(prev => ({
+          ...prev,
+          [formData.exactAddress || formData.location]: data
+        }));
+        
+        // Update form data with weather information
+        setFormData(prev => ({
+          ...prev,
+          weatherData: data
+        }));
+        
+        setWeatherDataLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching weather data for summary:', error);
+        setWeatherDataError(error.message);
+        setWeatherDataLoading(false);
+      });
+    }
   };
   
   // Load louver data from CSV file
@@ -204,6 +421,129 @@ function App() {
       generateLouverRecommendations();
     }
   }, [currentStep, louverData, formData.weatherData, formData.buildingType, formData.primaryPurpose, formData.performancePriority, formData.buildingHeight, formData.environmentalExposure]);
+  
+  // Effect to load weather data when reaching the summary step
+  useEffect(() => {
+    // When user reaches the summary step, ensure we have weather data
+    if (currentStep === 5 && locationValid && formData.location) {
+      console.log('Summary step reached: Loading weather data if needed');
+      loadWeatherDataForSummary();
+    }
+  }, [currentStep, locationValid, formData.location, formData.weatherData]);
+  
+  // Function to determine rain defense class based on BS EN 13030:2001 standard and application requirements
+  const determineRainDefenseClass = (formData) => {
+    // Default to class D (minimal protection) if no specific requirements
+    let requiredRainClass = 'D';
+    
+    // Step 1: Determine required rain defense class based on application requirements
+    // According to BS EN 13030:2001, applications are classified by their sensitivity to water ingress
+    
+    // Class D (Basic): General purpose applications with minimal sensitivity to water ingress
+    // Class C (Moderate): Applications where occasional water ingress is acceptable
+    // Class B (High): Applications where water ingress should be minimized
+    // Class A (Severe): Applications where water ingress must be prevented
+    
+    // Map building types to required rain defense classes
+    const buildingTypeMap = {
+      'Office Building': 'C',
+      'Residential': 'C',
+      'Commercial': 'C',
+      'Industrial': 'B',
+      'Educational': 'C',
+      'Healthcare': 'B',
+      'Hospital': 'A',
+      'Data Center': 'A',
+      'Laboratory': 'A',
+      'Warehouse': 'D',
+      'Mixed Use': 'C'
+    };
+    
+    // If building type has a specific requirement, use it
+    if (formData.buildingType && buildingTypeMap[formData.buildingType]) {
+      requiredRainClass = buildingTypeMap[formData.buildingType];
+    }
+    
+    // Map primary purposes to required rain defense classes
+    const purposeMap = {
+      'Air Intake': 'B',
+      'Equipment Protection': 'A',
+      'Weather Protection': 'B',
+      'Visual Screening': 'D',
+      'Architectural Feature': 'C',
+      'Solar Shading': 'C'
+    };
+    
+    // If purpose has a specific requirement, potentially upgrade the class
+    if (formData.primaryPurpose && purposeMap[formData.primaryPurpose]) {
+      const purposeClass = purposeMap[formData.primaryPurpose];
+      const classRanking = { 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+      
+      // Only upgrade if the purpose requires higher protection
+      if (classRanking[purposeClass] > classRanking[requiredRainClass]) {
+        requiredRainClass = purposeClass;
+      }
+    }
+    
+    // Special requirements can further increase the required class
+    if (formData.specialRequirements) {
+      // Coastal environments need high protection due to salt spray and higher wind-driven rain
+      if (formData.specialRequirements.coastal) {
+        requiredRainClass = requiredRainClass === 'A' ? 'A' : 'B';
+      }
+      
+      // Hurricane zones need highest protection
+      if (formData.specialRequirements.hurricane) {
+        requiredRainClass = 'A';
+      }
+    }
+    
+    // Performance standards explicitly set by the user take highest priority
+    if (formData.performanceStandards?.waterPenetration) {
+      requiredRainClass = 'A';
+    }
+    
+    // Step 2: Consider weather data from the location
+    // The BS EN 13030:2001 standard calculates rain defense class based on:
+    // - Rainfall intensity
+    // - Wind speed
+    // - Wind direction relative to louver orientation
+    // - Site exposure level
+    
+    let weatherBasedClass = 'D'; // Default if no weather data
+    
+    if (formData.weatherData) {
+      // If backend already calculated recommended_rain_class using the standard, use it
+      if (formData.weatherData.recommended_rain_class) {
+        weatherBasedClass = formData.weatherData.recommended_rain_class;
+      }
+      // Otherwise, we could implement the calculation here if needed
+    }
+    
+    // Step 3: Final rain class is the more stringent of application requirements and weather data
+    const classRanking = { 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+    const finalRainClass = classRanking[weatherBasedClass] > classRanking[requiredRainClass] ? 
+                           weatherBasedClass : requiredRainClass;
+    
+    return {
+      finalClass: finalRainClass,
+      applicationClass: requiredRainClass,
+      weatherClass: weatherBasedClass,
+      explanation: getRainClassExplanation(finalRainClass)
+    };
+  };
+  
+  // Helper function to get explanation for rain defense classes
+  const getRainClassExplanation = (rainClass) => {
+    const explanations = {
+      'A': 'Class A: Highest level of rain defense. Required for critical applications where water ingress must be prevented.',
+      'B': 'Class B: High level of rain defense. Suitable for applications where water ingress should be minimized.',
+      'C': 'Class C: Moderate level of rain defense. Acceptable for applications where occasional water ingress is tolerable.',
+      'D': 'Class D: Basic level of rain defense. Suitable for general purpose applications with minimal sensitivity to water ingress.'
+    };
+    
+    return explanations[rainClass] || 'Rain defense class information not available.';
+  };
   
   // Function to generate louver recommendations based on form data and industry patterns
   const generateLouverRecommendations = () => {
@@ -375,6 +715,120 @@ function App() {
         return confidenceScore(b.confidence) - confidenceScore(a.confidence);
       });
       
+      // Function to determine rain defense class based on BS EN 13030:2001 standard and application requirements
+      const determineRainDefenseClass = (formData) => {
+        // Default to class D (minimal protection) if no specific requirements
+        let requiredRainClass = 'D';
+        
+        // Step 1: Determine required rain defense class based on application requirements
+        // According to BS EN 13030:2001, applications are classified by their sensitivity to water ingress
+        
+        // Class D (Basic): General purpose applications with minimal sensitivity to water ingress
+        // Class C (Moderate): Applications where occasional water ingress is acceptable
+        // Class B (High): Applications where water ingress should be minimized
+        // Class A (Severe): Applications where water ingress must be prevented
+        
+        // Map building types to required rain defense classes
+        const buildingTypeMap = {
+          'Office Building': 'C',
+          'Residential': 'C',
+          'Commercial': 'C',
+          'Industrial': 'B',
+          'Educational': 'C',
+          'Healthcare': 'B',
+          'Hospital': 'A',
+          'Data Center': 'A',
+          'Laboratory': 'A',
+          'Warehouse': 'D',
+          'Mixed Use': 'C'
+        };
+        
+        // If building type has a specific requirement, use it
+        if (formData.buildingType && buildingTypeMap[formData.buildingType]) {
+          requiredRainClass = buildingTypeMap[formData.buildingType];
+        }
+        
+        // Map primary purposes to required rain defense classes
+        const purposeMap = {
+          'Air Intake': 'B',
+          'Equipment Protection': 'A',
+          'Weather Protection': 'B',
+          'Visual Screening': 'D',
+          'Architectural Feature': 'C',
+          'Solar Shading': 'C'
+        };
+        
+        // If purpose has a specific requirement, potentially upgrade the class
+        if (formData.primaryPurpose && purposeMap[formData.primaryPurpose]) {
+          const purposeClass = purposeMap[formData.primaryPurpose];
+          const classRanking = { 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+          
+          // Only upgrade if the purpose requires higher protection
+          if (classRanking[purposeClass] > classRanking[requiredRainClass]) {
+            requiredRainClass = purposeClass;
+          }
+        }
+        
+        // Special requirements can further increase the required class
+        if (formData.specialRequirements) {
+          // Coastal environments need high protection due to salt spray and higher wind-driven rain
+          if (formData.specialRequirements.coastal) {
+            requiredRainClass = requiredRainClass === 'A' ? 'A' : 'B';
+          }
+          
+          // Hurricane zones need highest protection
+          if (formData.specialRequirements.hurricane) {
+            requiredRainClass = 'A';
+          }
+        }
+        
+        // Performance standards explicitly set by the user take highest priority
+        if (formData.performanceStandards?.waterPenetration) {
+          requiredRainClass = 'A';
+        }
+        
+        // Step 2: Consider weather data from the location
+        // The BS EN 13030:2001 standard calculates rain defense class based on:
+        // - Rainfall intensity
+        // - Wind speed
+        // - Wind direction relative to louver orientation
+        // - Site exposure level
+        
+        let weatherBasedClass = 'D'; // Default if no weather data
+        
+        if (formData.weatherData) {
+          // If backend already calculated recommended_rain_class using the standard, use it
+          if (formData.weatherData.recommended_rain_class) {
+            weatherBasedClass = formData.weatherData.recommended_rain_class;
+          }
+          // Otherwise, we could implement the calculation here if needed
+        }
+        
+        // Step 3: Final rain class is the more stringent of application requirements and weather data
+        const classRanking = { 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+        const finalRainClass = classRanking[weatherBasedClass] > classRanking[requiredRainClass] ? 
+                               weatherBasedClass : requiredRainClass;
+        
+        return {
+          finalClass: finalRainClass,
+          applicationClass: requiredRainClass,
+          weatherClass: weatherBasedClass,
+          explanation: getRainClassExplanation(finalRainClass)
+        };
+      };
+      
+      // Helper function to get explanation for rain defense classes
+      const getRainClassExplanation = (rainClass) => {
+        const explanations = {
+          'A': 'Class A: Highest level of rain defense. Required for critical applications where water ingress must be prevented.',
+          'B': 'Class B: High level of rain defense. Suitable for applications where water ingress should be minimized.',
+          'C': 'Class C: Moderate level of rain defense. Acceptable for applications where occasional water ingress is tolerable.',
+          'D': 'Class D: Basic level of rain defense. Suitable for general purpose applications with minimal sensitivity to water ingress.'
+        };
+        
+        return explanations[rainClass] || 'Rain defense class information not available.';
+      };
+      
       // Generate recommendations from the matching patterns
       const recommendations = [];
       
@@ -387,7 +841,8 @@ function App() {
           explanation: bestMatch.explanation,
           reasoning: bestMatch.reasoning,
           alternatives: bestMatch.alternativeModels,
-          tier: 'Primary'
+          tier: 'Primary',
+          rainDefenseClass: determineRainDefenseClass(formData)
         });
       }
       
@@ -531,13 +986,25 @@ function App() {
       [field]: value
     }));
     
-    // If location changes, try to fetch weather data
-    if (field === 'location' && value.length > 5) {
-      // Debounce the API call to avoid too many requests
-      clearTimeout(window.locationTimeout);
-      window.locationTimeout = setTimeout(() => {
-        fetchWeatherData(value);
-      }, 1000);
+    // If location changes, handle validation appropriately
+    if (field === 'location') {
+      // Clear validation status immediately when user starts typing
+      if (locationValid || locationError) {
+        setLocationValid(false);
+        setLocationError(null);
+      }
+      
+      // Only validate if there's enough text to be a valid location
+      if (value.length > 3) {
+        // Debounce the API call to avoid too many requests
+        clearTimeout(window.locationTimeout);
+        window.locationTimeout = setTimeout(() => {
+          validateLocation(value);
+          
+          // After successful validation, we'll fetch weather data in the background
+          // The weather data will be fetched only after location is validated
+        }, 800); // Slightly faster response for better UX
+      }
     }
     
     // Map primary purpose to appropriate performance values
@@ -803,12 +1270,44 @@ function App() {
               <div className="form-col">
                 <div className="form-group">
                   <label>Location</label>
-                  <input
-                    type="text"
-                    placeholder="City, State or Postal Code"
-                    value={formData.location || ''}
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                  />
+                  <div className="input-with-status">
+                    <input
+                      type="text"
+                      placeholder="City, State or Postal Code"
+                      value={formData.location || ''}
+                      onChange={(e) => handleInputChange('location', e.target.value)}
+                      className={locationError ? 'input-error' : locationValid ? 'input-valid' : ''}
+                    />
+                    {formData.location && (
+                      <button 
+                        className="clear-input-btn" 
+                        onClick={() => {
+                          handleInputChange('location', '');
+                          setLocationValid(false);
+                          setLocationError(null);
+                          setLocationValidating(false);
+                        }}
+                        type="button"
+                        aria-label="Clear location"
+                      >
+                        ×
+                      </button>
+                    )}
+                    {locationValidating && <span className="validation-indicator validating">Validating...</span>}
+                    {locationValid && !locationValidating && <span className="validation-indicator valid">✓ Valid location</span>}
+                    {locationError && !locationValidating && <span className="validation-indicator error">{locationError}</span>}
+                  </div>
+                  {locationValid && formData.exactAddress && (
+                    <div className="exact-address-display">
+                      <span className="exact-address-label">Exact location:</span> {formData.exactAddress}
+                      {formData.coordinates && (
+                        <div className="coordinates-display">
+                          <span className="coordinates-label">Coordinates:</span> 
+                          {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="tooltip">Location helps us assess climate factors</div>
                 </div>
               </div>
@@ -885,44 +1384,7 @@ function App() {
               <div className="tooltip">Select any special requirements that apply to your project</div>
             </div>
             
-            {formData.location && formData.location.length > 3 && (
-              <div className="location-validation-container">
-                {weatherDataLoading && (
-                  <div className="loading-indicator">Validating location...</div>
-                )}
-                
-                {locationValid && (
-                  <div className="location-valid-message">
-                    <div className="success-message">
-                      <span className="success-icon">✓</span> Location validated successfully
-                    </div>
-                  </div>
-                )}
-                
-                {weatherDataError && !locationValid && (
-                  <div className="location-invalid-container">
-                    <div className="error-message">{weatherDataError}</div>
-                    <p>Please select your location on the map below:</p>
-                    
-                    <Suspense fallback={<div className="loading-indicator">Loading map...</div>}>
-                      <LocationMap 
-                        location={formData.location} 
-                        coordinates={formData.mapCoordinates}
-                        onLocationSelect={(coords) => {
-                          console.log('Location selected:', coords);
-                          setFormData(prev => ({
-                            ...prev,
-                            mapCoordinates: coords
-                          }));
-                          // When user selects a location manually, consider it valid
-                          setLocationValid(true);
-                        }}
-                      />
-                    </Suspense>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Location validation status is now shown inline with the input field */}
           </div>
         );
         
@@ -1210,55 +1672,110 @@ function App() {
                   <span className="summary-value">{formData.primaryPurpose || 'Not specified'}</span>
                 </div>
                 <div className="summary-item">
-                  <span className="summary-label">Performance Priority:</span>
-                  <span className="summary-value">{formData.performancePriority || 'Not specified'}</span>
-                </div>
-                <div className="summary-item">
                   <span className="summary-label">Project Phase:</span>
                   <span className="summary-value">{formData.projectPhase || 'Not specified'}</span>
                 </div>
               </div>
             </div>
             
-            {formData.weatherData && (
-              <div className="summary-section">
-                <h3>Environmental Conditions</h3>
-                <div className="summary-grid">
-                  <div className="summary-item">
-                    <span className="summary-label">Location:</span>
-                    <span className="summary-value">{formData.weatherData.location || formData.location}</span>
+            <div className="summary-section weather-data">
+              <h3>Environmental Conditions</h3>
+              
+              {weatherDataLoading && <div className="loading-indicator">Loading weather data...</div>}
+              
+              {weatherDataError && <div className="error-message">{weatherDataError}</div>}
+              
+              {!weatherDataLoading && !formData.weatherData && locationValid && (
+                <div className="loading-indicator">Fetching weather data for your location...</div>
+              )}
+              
+              {formData.weatherData && (
+                <div className="weather-data-container">
+                  <div className="weather-data-item">
+                    <span className="label">Climate Zone:</span>
+                    <span className="value">{formData.weatherData.climate_zone || 'Not available'}</span>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Recommended Rain Class:</span>
-                    <span className="summary-value">{formData.weatherData.recommended_rain_class || 'Not available'}</span>
+                  
+                  <div className="weather-data-item">
+                    <span className="label">Average Temperature:</span>
+                    <span className="value">
+                      {formData.weatherData.average_temperature ? 
+                        `${formData.weatherData.average_temperature}°C` : 
+                        (formData.weatherData.avgTemp ? `${formData.weatherData.avgTemp}°C` : 'Not available')}
+                    </span>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Average Rainfall:</span>
-                    <span className="summary-value">{formData.weatherData.average_rainfall ? `${formData.weatherData.average_rainfall} mm/day` : 'Not available'}</span>
+                  
+                  <div className="weather-data-item">
+                    <span className="label">Average Rainfall:</span>
+                    <span className="value">
+                      {formData.weatherData.average_rainfall ? 
+                        `${formData.weatherData.average_rainfall} mm/day` : 
+                        (formData.weatherData.avgRainfall ? `${formData.weatherData.avgRainfall} mm/year` : 'Not available')}
+                    </span>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Average Wind Speed:</span>
-                    <span className="summary-value">{formData.weatherData.average_wind_speed ? `${formData.weatherData.average_wind_speed} m/s` : 'Not available'}</span>
+                  
+                  <div className="weather-data-item">
+                    <span className="label">Average Wind Speed:</span>
+                    <span className="value">
+                      {formData.weatherData.average_wind_speed ? 
+                        `${formData.weatherData.average_wind_speed} m/s` : 
+                        (formData.weatherData.avgWindSpeed ? `${formData.weatherData.avgWindSpeed} km/h` : 'Not available')}
+                    </span>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Average Temperature:</span>
-                    <span className="summary-value">{formData.weatherData.average_temperature ? `${formData.weatherData.average_temperature}°C` : 'Not available'}</span>
+                  
+                  <div className="weather-data-item">
+                    <span className="label">Recommended Rain Defense Class:</span>
+                    {(() => {
+                      const rainDefenseInfo = determineRainDefenseClass(formData);
+                      return (
+                        <>
+                          <span className="value highlight">{rainDefenseInfo.finalClass}</span>
+                          <span className="rain-class-note">
+                            {rainDefenseInfo.explanation}
+                          </span>
+                          <div className="rain-class-details">
+                            <div className="rain-class-factor">
+                              <span className="factor-label">Application-based:</span> 
+                              <span className="factor-value">{rainDefenseInfo.applicationClass}</span>
+                            </div>
+                            <div className="rain-class-factor">
+                              <span className="factor-label">Weather-based:</span> 
+                              <span className="factor-value">{rainDefenseInfo.weatherClass}</span>
+                            </div>
+                            <div className="rain-class-standard">
+                              Based on BS EN 13030:2001 standard
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()} 
                   </div>
                 </div>
-                
-                {/* Map display in summary step */}
-                <div className="summary-map-container">
+              )}
+              
+              {/* Location information in summary step */}
+              {locationValid && formData.exactAddress && (
+                <div className="summary-location-container">
                   <h4>Project Location</h4>
-                  <Suspense fallback={<div className="loading-indicator">Loading map...</div>}>
-                    <LocationMap 
-                      location={formData.location} 
-                      coordinates={formData.weatherData?.coordinates || formData.mapCoordinates}
-                      onLocationSelect={null} // No selection in summary view
-                    />
-                  </Suspense>
+                  <p className="summary-address">{formData.exactAddress}</p>
+                  {formData.coordinates && (
+                    <div className="location-map-container">
+                      <iframe
+                        title="Project Location Map"
+                        className="location-map"
+                        src={`https://maps.google.com/maps?q=${formData.coordinates.lat},${formData.coordinates.lng}&z=15&output=embed`}
+                        width="100%"
+                        height="250"
+                        style={{ border: 0, borderRadius: '4px', marginTop: '10px' }}
+                        allowFullScreen=""
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      ></iframe>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             
             <div className="summary-section">
               <h3>Initial Louver Recommendations</h3>

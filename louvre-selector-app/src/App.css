@@ -503,6 +503,187 @@ textarea:focus {
   margin: 15px 0;
 }
 
+/* Input with validation status styling */
+.input-with-status {
+  position: relative;
+}
+
+/* Clear button styling */
+.clear-input-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.clear-input-btn:hover {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+/* Adjust validation indicator position when clear button is present */
+.input-with-status .validation-indicator {
+  right: 40px;
+}
+
+.input-valid {
+  border-color: #28a745 !important;
+  background-color: #f8fff9 !important;
+}
+
+.input-error {
+  border-color: #dc3545 !important;
+  background-color: #fff9f9 !important;
+}
+
+.validation-indicator {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.validation-indicator.validating {
+  color: #0066cc;
+  background-color: rgba(0, 102, 204, 0.1);
+}
+
+.validation-indicator.valid {
+  color: #28a745;
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+.validation-indicator.error {
+  color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
+/* Exact address display styling */
+.exact-address-display {
+  font-size: 13px;
+  color: #444;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  line-height: 1.4;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #28a745;
+}
+
+.exact-address-label {
+  font-weight: 600;
+  color: #333;
+  margin-right: 6px;
+}
+
+.coordinates-display {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.coordinates-label {
+  font-weight: 500;
+  color: #555;
+  margin-right: 4px;
+}
+
+/* Summary location display */
+.summary-location-container {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 12px 15px;
+  margin-top: 15px;
+  border-left: 3px solid #28a745;
+}
+
+.summary-location-container h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 16px;
+}
+
+.summary-address {
+  margin: 0;
+  color: #444;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.location-map-container {
+  margin-top: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.location-map {
+  display: block;
+  width: 100%;
+  border: none;
+}
+
+/* Rain defense class styling */
+.rain-class-note {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.rain-class-details {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+  font-size: 12px;
+}
+
+.rain-class-factor {
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.factor-label {
+  font-weight: 500;
+  color: #555;
+}
+
+.factor-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.rain-class-standard {
+  margin-top: 6px;
+  font-style: italic;
+  color: #666;
+  font-size: 11px;
+  text-align: right;
+}
+
 .location-valid-message {
   padding: 12px;
   background-color: #e7f7ee;

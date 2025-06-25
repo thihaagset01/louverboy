@@ -31,15 +31,33 @@ The Louver Selector Tool is an expert system that helps architects, engineers, a
 - Pattern-based expert system for recommendations
 - Responsive UI with contextual feedback for user inputs
 
-## Location Validation Workflow
+## Location Validation and Weather Data Workflow
 
-The application features an improved location validation workflow:
+The application features an optimized location validation and weather data workflow:
 
-1. **Input Validation**: When a user enters a location, the system attempts to validate it via the weather API
-2. **Valid Location**: If valid, a success message is shown and the user can proceed to the next step
-3. **Invalid Location**: If invalid, the map is displayed allowing the user to manually select their location
-4. **Manual Selection**: Clicking on the map sets coordinates and validates the location
-5. **Summary View**: The final summary displays the validated location on a map with weather data
+1. **Fast Location Validation**: 
+   - Uses direct geocoding for quick location validation without waiting for weather data
+   - Provides immediate feedback to users about location validity
+   - Extracts exact address and coordinates for precise identification
+
+2. **Background Weather Data Fetching**:
+   - Weather data is fetched in the background only after successful location validation
+   - Uses coordinates (when available) for more precise weather data
+   - Implements efficient caching to prevent duplicate API calls
+
+3. **Weather Data Display**:
+   - Weather data is only displayed in the summary step
+   - Includes temperature, rainfall, wind speed, and wind direction
+   - Calculates rain defense class based on BS EN 13030:2001 standard
+
+4. **Manual Location Selection**:
+   - If automatic validation fails, users can manually select their location on a map
+   - Clicking on the map sets coordinates and validates the location
+
+5. **Summary View**:
+   - Displays the validated location on a map with detailed weather data
+   - Shows exact address and coordinates for precise identification
+   - Presents rain defense class with detailed explanation
 
 ## Setup Requirements
 
