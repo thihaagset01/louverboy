@@ -1,11 +1,12 @@
 # Louverboy
 
-Recommend Louver models to Users based off different parameters with integrated weather data from Google Earth Engine.
+Recommend Louver models to Users based on different parameters with integrated weather data from Google Earth Engine. Now featuring a Gradio interface for quick louver selection.
 
 ## Project Structure
 
 - `louvre-selector-app/` - React frontend application
 - `weather_api.py` - Flask API for weather data retrieval using Google Earth Engine
+- `simple_gradio_app.py` - Gradio interface for louver selection
 - `requirements.txt` - Python dependencies
 - `sample_code/` - Reference code samples
 
@@ -63,6 +64,27 @@ npm start
 The app will be available at http://localhost:3000
 
 ## Features
+
+### Gradio Interface
+
+The project now includes a Gradio-based interface for quick louver selection:
+
+- **Simple UI**: Easy-to-use interface for selecting louver parameters
+- **Visual Comparison**: Compare recommended louvers with interactive charts
+- **Standalone Operation**: Works independently of the React frontend
+- **Quick Prototyping**: Perfect for testing louver selection algorithms
+
+To run the Gradio interface:
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the Gradio app
+python simple_gradio_app.py
+```
+
+The Gradio interface will be available at http://localhost:7860
 
 ### Weather Data Integration
 
