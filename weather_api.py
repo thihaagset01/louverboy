@@ -15,6 +15,14 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization", "X-Validation-Only"],
                           "expose_headers": ["Content-Type", "Authorization"], "supports_credentials": True}})
 
+# Add a global CORS preflight handler for all routes
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Validation-Only')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 # Initialize Flask app
 
 # Initialize once when server starts
