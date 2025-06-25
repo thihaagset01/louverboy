@@ -11,17 +11,8 @@ import math
 
 # Initialize Flask app
 app = Flask(__name__)
-# Configure CORS to be completely permissive for development
-CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization", "X-Validation-Only"],
-                          "expose_headers": ["Content-Type", "Authorization"], "supports_credentials": True}})
-
-# Add a global CORS preflight handler for all routes
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Validation-Only')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+# Use a simpler CORS configuration to avoid duplicate headers
+CORS(app)
 
 # Initialize Flask app
 
@@ -99,17 +90,9 @@ def get_rain_class(mean_rain_fall, mean_wind_speed, mean_wind_dir, exposure_type
     else:
         return 'D'  # Minimal rain protection required
 
-@app.route('/validate-location', methods=['POST', 'OPTIONS'])
+@app.route('/validate-location', methods=['POST'])
 def validate_location():
     """Lightweight endpoint that only validates a location without fetching weather data"""
-    # Handle preflight OPTIONS request
-    if request.method == 'OPTIONS':
-        response = jsonify({})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        return response
-        
     try:
         # Get location from request body
         data = request.get_json()
@@ -125,13 +108,10 @@ def validate_location():
                 return jsonify({'error': f'Could not geocode location: {location_str}'}), 400
                 
             # Return only the location information without weather data
-            response = jsonify({
+            return jsonify({
                 'location': location.address,
                 'coordinates': [location.latitude, location.longitude]
             })
-            # Add CORS headers explicitly
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            return response
         except Exception as e:
             return jsonify({'error': f'Geocoding error: {str(e)}'}), 500
             
