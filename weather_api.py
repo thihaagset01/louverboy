@@ -1,5 +1,5 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
+# Remove flask_cors import completely - we'll handle CORS manually
 import ee
 from geopy.geocoders import Nominatim
 import random
@@ -11,10 +11,38 @@ import math
 
 # Initialize Flask app
 app = Flask(__name__)
-# Use a simpler CORS configuration to avoid duplicate headers
-CORS(app)
+# NO CORS library - we handle it manually
 
-# Initialize Flask app
+# Manual CORS handler
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    # Only allow specific origins
+    allowed_origins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001']
+    
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    
+    return response
+
+# Handle preflight OPTIONS requests
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        origin = request.headers.get('Origin')
+        allowed_origins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001']
+        
+        response = make_response()
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        return response
 
 # Initialize once when server starts
 # Increase timeout for geocoding requests
@@ -42,9 +70,6 @@ try:
         EE_INITIALIZED = False
 except Exception as e:
     print(f"Warning: Could not initialize Google Earth Engine: {e}")
-
-
-# Weather API functions
 
 def get_rain_class(mean_rain_fall, mean_wind_speed, mean_wind_dir, exposure_type, exposure_dir=0):
     """
@@ -90,7 +115,7 @@ def get_rain_class(mean_rain_fall, mean_wind_speed, mean_wind_dir, exposure_type
     else:
         return 'D'  # Minimal rain protection required
 
-@app.route('/validate-location', methods=['POST'])
+@app.route('/validate-location', methods=['POST', 'OPTIONS'])
 def validate_location():
     """Lightweight endpoint that only validates a location without fetching weather data"""
     try:
@@ -120,7 +145,7 @@ def validate_location():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/weather', methods=['POST', 'GET'])
+@app.route('/weather', methods=['POST', 'GET', 'OPTIONS'])
 def get_weather():
     """Get weather data for a location"""
     try:
@@ -233,27 +258,6 @@ def get_weather():
                 buffer_distance = 1000  # 1km buffer
                 region = point.buffer(buffer_distance)
                 
-                # Calculate mean temperature for the entire period
-                print("Calculating mean temperature...")
-                temp_image = dataset.select('mean_2m_air_temperature').mean()
-                
-                # Get temperature value using reduceRegion with explicit scale
-                temp_stats = temp_image.reduceRegion(
-                    reducer=ee.Reducer.mean(),
-                    geometry=region,
-                    scale=1000,  # 1km resolution
-                    maxPixels=1e9
-                ).getInfo()
-                
-                print("Temperature stats:", temp_stats)
-                
-                # Extract temperature and convert from Kelvin to Celsius
-                if 'mean_2m_air_temperature' in temp_stats and temp_stats['mean_2m_air_temperature'] is not None:
-                    temp_kelvin = temp_stats['mean_2m_air_temperature']
-                    temp_celsius = temp_kelvin - 273.15
-                else:
-                    # Use a reasonable default if data is missing
-                    print("Warning: Temperature data not available, using default value")
                 try:
                     # Use a single reduceRegion call to get all values at once (much faster)
                     mean_values = dataset.mean().reduceRegion(
@@ -330,66 +334,7 @@ def get_weather():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def get_rain_class(mean_rain_fall, mean_wind_speed, mean_wind_dir, exposure_type, exposure_dir=0):
-    """Calculate the rain class (A, B, C, or D) based on weather data according to BS EN 13030:2001 standard.
-    
-    Args:
-        mean_rain_fall: Average rainfall in mm/day
-        mean_wind_speed: Wind speed in m/s
-        mean_wind_dir: Wind direction in radians
-        exposure_type: Level of exposure ('high', 'medium', 'low')
-        exposure_dir: Direction of exposure in radians (defaults to 0)
-        
-    Returns:
-        A string representing the rain class ('A', 'B', 'C', or 'D')
-    """
-    # We'll use the pure BS EN 13030:2001 standard calculation for all rainfall levels
-    # This ensures consistent application of the standard without any hardcoded thresholds
-    
-    # For normal rainfall locations, use the standard calculation from BS EN 13030:2001
-    # These exposure coefficients are directly from the standard
-    exposure_map = {
-        'high': 0.35,    # Coastal areas, open terrain
-        'medium': 0.25,  # Suburban, forest
-        'low': 0.2,      # City centers, dense urban areas
-    }
-    
-    # Get exposure coefficient
-    a = exposure_map[exposure_type]
-    
-    # Log the parameters for debugging
-    print(f'Parameters: rainfall={mean_rain_fall:.2f}mm/day, wind={mean_wind_speed:.1f}m/s, exposure={exposure_type}')
-    
-    # Calculate wind-driven rain coefficient (C_wdr) as per BS EN 13030:2001
-    # The standard considers the angle between wind direction and facade orientation
-    wind_angle_factor = abs(math.cos(mean_wind_dir - exposure_dir))
-    C_wdr = min(1, a * mean_wind_speed * wind_angle_factor)
-    print(f'C_wdr = {C_wdr:.4f}')
-    
-    # Calculate wind-driven rain rate (l/h per m²) as per the standard
-    # Convert daily rainfall to hourly and then to liters per hour per m²
-    q_wdr = (mean_rain_fall/24 * C_wdr)/3600
-    print(f'q_wdr = {q_wdr:.6f} l/h per m²')
-    
-    # Calculate effectiveness rating based on BS EN 13030:2001 relative exposure
-    # The standard uses a reference value of 20.83 for normalization
-    relative_exposure = q_wdr/20.83
-    print(f'Relative exposure = {relative_exposure:.6f}')
-    
-    # Determine rain class based on effectiveness rating thresholds from BS EN 13030:2001
-    # These thresholds match the reference implementation
-    if relative_exposure >= 0.8:
-        return 'A'  # High rain protection required
-    elif relative_exposure >= 0.4:
-        return 'B'  # Significant rain protection required
-    elif relative_exposure >= 0.2:
-        return 'C'  # Moderate rain protection required
-    elif relative_exposure < 0.2:
-        return 'D'  # Minimal rain protection required
-    else:
-        return 'Unknown'
-
-@app.route('/health', methods=['GET'])
+@app.route('/health', methods=['GET', 'OPTIONS'])
 def health_check():
     """Simple endpoint to check if the API is running"""
     return jsonify({
@@ -401,4 +346,4 @@ def health_check():
 if __name__ == '__main__':
     print("Starting Flask server for weather API...")
     print(f"Earth Engine initialized: {EE_INITIALIZED}")
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, host='0.0.0.0')
