@@ -829,6 +829,9 @@ function App() {
       // Generate recommendations from the matching patterns
       const recommendations = [];
       
+      // Track used models to prevent duplicates
+      const usedModels = new Set();
+      
       // Primary recommendation (best match)
       if (sortedPatterns.length > 0) {
         const bestMatch = sortedPatterns[0];
@@ -841,72 +844,104 @@ function App() {
           tier: 'Primary',
           rainDefenseClass: determineRainDefenseClass(formData)
         });
+        usedModels.add(bestMatch.primaryModel); // Track used model
       }
       
-      // Secondary recommendation (alternative from same pattern or next best pattern)
+      // Secondary recommendation - check for duplicates
       if (sortedPatterns.length > 0) {
         const bestMatch = sortedPatterns[0];
+        let secondaryModel = null;
+        
+        // Try alternative models first
         if (bestMatch.alternativeModels && bestMatch.alternativeModels.length > 0) {
+          secondaryModel = bestMatch.alternativeModels.find(model => !usedModels.has(model));
+        }
+        
+        // If no unused alternative, try next pattern
+        if (!secondaryModel && sortedPatterns.length > 1) {
+          const secondMatch = sortedPatterns[1];
+          if (!usedModels.has(secondMatch.primaryModel)) {
+            secondaryModel = secondMatch.primaryModel;
+          }
+        }
+        
+        if (secondaryModel) {
           recommendations.push({
-            louverModel: bestMatch.alternativeModels[0],
+            louverModel: secondaryModel,
             confidence: adjustConfidence(bestMatch.confidence),
             explanation: `Alternative option within the same category as ${bestMatch.primaryModel}`,
             reasoning: `Provides similar benefits to the primary recommendation with slight differences in performance characteristics`,
             alternatives: [bestMatch.primaryModel],
             tier: 'Secondary'
           });
-        } else if (sortedPatterns.length > 1) {
-          const secondMatch = sortedPatterns[1];
-          recommendations.push({
-            louverModel: secondMatch.primaryModel,
-            confidence: secondMatch.confidence,
-            explanation: secondMatch.explanation,
-            reasoning: secondMatch.reasoning,
-            alternatives: secondMatch.alternativeModels,
-            tier: 'Secondary'
-          });
+          usedModels.add(secondaryModel);
         }
       }
       
-      // Tertiary recommendation (consider-if option)
-      if (sortedPatterns.length > 1) {
-        const secondMatch = sortedPatterns[1];
-        if (secondMatch.alternativeModels && secondMatch.alternativeModels.length > 0) {
+      // Tertiary recommendation - ensure uniqueness
+      if (recommendations.length < 3) {
+        let tertiaryModel = null;
+        
+        // Try to find an unused model from the patterns
+        for (let i = 0; i < sortedPatterns.length && !tertiaryModel; i++) {
+          const pattern = sortedPatterns[i];
+          
+          // Check if primary model is unused
+          if (!usedModels.has(pattern.primaryModel)) {
+            tertiaryModel = pattern.primaryModel;
+          } else if (pattern.alternativeModels) {
+            // Check if any alternative models are unused
+            tertiaryModel = pattern.alternativeModels.find(model => !usedModels.has(model));
+          }
+        }
+        
+        // If no unused models found in patterns, use default options
+        if (!tertiaryModel) {
+          const defaultModels = ['PL-2075', 'PL-1075', 'PL-3075', 'PL-2250', 'AC-150'];
+          tertiaryModel = defaultModels.find(model => !usedModels.has(model));
+        }
+        
+        if (tertiaryModel) {
           recommendations.push({
-            louverModel: secondMatch.alternativeModels[0],
-            confidence: adjustConfidence(secondMatch.confidence),
-            explanation: `Consider this option if ${secondMatch.reasoning.toLowerCase()}`,
-            reasoning: `This provides an alternative approach that may be suitable depending on specific project requirements`,
-            alternatives: [secondMatch.primaryModel],
+            louverModel: tertiaryModel,
+            confidence: 'Low',
+            explanation: 'General-purpose alternative option',
+            reasoning: 'Provides different performance characteristics for comparison',
+            alternatives: Array.from(usedModels),
             tier: 'Tertiary'
           });
-        } else if (sortedPatterns.length > 2) {
-          const thirdMatch = sortedPatterns[2];
-          recommendations.push({
-            louverModel: thirdMatch.primaryModel,
-            confidence: thirdMatch.confidence,
-            explanation: thirdMatch.explanation,
-            reasoning: thirdMatch.reasoning,
-            alternatives: thirdMatch.alternativeModels,
-            tier: 'Tertiary'
-          });
+          usedModels.add(tertiaryModel);
         }
       }
       
       // If we still need more recommendations, add default options
       while (recommendations.length < 3) {
-        const defaultModels = ['PL-2075', 'PL-1075', 'PL-3075'];
-        const modelToAdd = defaultModels[recommendations.length] || 'PL-2075';
+        const defaultModels = ['PL-2075', 'PL-1075', 'PL-3075', 'PL-2250', 'AC-150'];
+        const unusedDefault = defaultModels.find(model => !usedModels.has(model));
         
-        recommendations.push({
-          louverModel: modelToAdd,
-          confidence: 'Low',
-          explanation: 'This is a general-purpose louver suitable for most applications',
-          reasoning: 'Without specific requirements, this balanced model offers good overall performance',
-          alternatives: defaultModels.filter(m => m !== modelToAdd),
-          tier: recommendations.length === 0 ? 'Primary' : 
-                recommendations.length === 1 ? 'Secondary' : 'Tertiary'
-        });
+        if (unusedDefault) {
+          recommendations.push({
+            louverModel: unusedDefault,
+            confidence: 'Low',
+            explanation: 'This is a general-purpose louver suitable for most applications',
+            reasoning: 'Without specific requirements, this balanced model offers good overall performance',
+            alternatives: defaultModels.filter(m => m !== unusedDefault && !usedModels.has(m)),
+            tier: recommendations.length === 0 ? 'Primary' : 
+                  recommendations.length === 1 ? 'Secondary' : 'Tertiary'
+          });
+          usedModels.add(unusedDefault);
+        } else {
+          // If all default models are used, create a unique name
+          const fallbackModel = `PL-${1000 + recommendations.length}`;
+          recommendations.push({
+            louverModel: fallbackModel,
+            confidence: 'Low',
+            explanation: 'Additional option for comparison',
+            reasoning: 'Provides an alternative choice with different characteristics',
+            alternatives: [],
+            tier: 'Tertiary'
+          });
+        }
       }
       
       return recommendations;
@@ -978,11 +1013,6 @@ function App() {
   
   // Handle form input changes
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
     // If location changes, handle validation appropriately
     if (field === 'location') {
       // Clear validation status immediately when user starts typing
@@ -990,6 +1020,15 @@ function App() {
         setLocationValid(false);
         setLocationError(null);
       }
+      
+      // Clear weather-related data when location changes
+      setFormData(prev => ({
+        ...prev,
+        [field]: value,
+        weatherData: null,        // Clear cached weather data
+        exactAddress: null,       // Clear exact address
+        coordinates: null         // Clear coordinates
+      }));
       
       // Only validate if there's enough text to be a valid location
       if (value.length > 3) {
@@ -1002,7 +1041,16 @@ function App() {
           // The weather data will be fetched only after location is validated
         }, 800); // Slightly faster response for better UX
       }
+      
+      // Since we've already updated formData, return early
+      return;
     }
+    
+    // For all other fields, use the default update
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
     
     // Map primary purpose to appropriate performance values
     if (field === 'primaryPurpose') {
