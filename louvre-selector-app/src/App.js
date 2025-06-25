@@ -105,15 +105,17 @@ function App() {
       return;
     }
     
-    // Create a custom lightweight request for geocoding only
-    // Since the backend doesn't have a separate endpoint, we'll use a custom header
     console.log('Validating location:', location);
     
-    // Use the Nominatim API directly for geocoding only
+    // Use our new lightweight validation endpoint for geocoding only
     // This is much faster than the full weather API call
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
-    
-    fetch(nominatimUrl)
+    fetch('http://localhost:5000/validate-location', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ location })
+    })
     .then(response => {
       if (!response.ok) {
         throw new Error(`Location not found or invalid`);
@@ -121,22 +123,19 @@ function App() {
       return response.json();
     })
     .then(data => {
-      if (!data || data.length === 0) {
+      if (!data || !data.location) {
         throw new Error(`Location not found: ${location}`);
       }
       
       console.log('Location validation successful:', data);
       
-      // Extract the first result
-      const result = data[0];
-      
-      // Extract detailed location information
-      const fullAddress = result.display_name || location;
+      // Extract location information from response
+      const fullAddress = data.location || location;
       
       // Extract coordinates
       const coordinates = {
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon)
+        lat: data.coordinates ? parseFloat(data.coordinates[0]) : 0,
+        lng: data.coordinates ? parseFloat(data.coordinates[1]) : 0
       };
       
       // Store coordinates and address in form data
@@ -150,10 +149,8 @@ function App() {
       setLocationValid(true);
       setLocationValidating(false);
       
-      // Now that we have validated the location, fetch weather data in the background
+      // Fetch weather data in the background
       fetchWeatherDataInBackground(fullAddress, coordinates);
-      
-      return { location: fullAddress, coordinates: [coordinates.lat, coordinates.lng] };
     })
     .catch(error => {
       console.error('Error validating location:', error);

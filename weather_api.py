@@ -89,6 +89,36 @@ def get_rain_class(mean_rain_fall, mean_wind_speed, mean_wind_dir, exposure_type
     else:
         return 'D'  # Minimal rain protection required
 
+@app.route('/validate-location', methods=['POST'])
+def validate_location():
+    """Lightweight endpoint that only validates a location without fetching weather data"""
+    try:
+        # Get location from request body
+        data = request.get_json()
+        if not data or 'location' not in data:
+            return jsonify({'error': 'Please provide a location'}), 400
+        
+        location_str = data['location']
+        
+        # Geocode the location
+        try:
+            location = geolocator.geocode(location_str)
+            if not location:
+                return jsonify({'error': f'Could not geocode location: {location_str}'}), 400
+                
+            # Return only the location information without weather data
+            return jsonify({
+                'location': location.address,
+                'coordinates': [location.latitude, location.longitude]
+            })
+        except Exception as e:
+            return jsonify({'error': f'Geocoding error: {str(e)}'}), 500
+            
+    except Exception as e:
+        print(f"Error in validate_location: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/weather', methods=['POST', 'GET'])
 def get_weather():
     """Get weather data for a location"""
