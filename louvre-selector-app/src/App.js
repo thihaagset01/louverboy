@@ -1737,12 +1737,7 @@ function App() {
               {formData.weatherData && (
                 <div className="weather-data-container">
                   <div className="weather-data-item">
-                    <span className="label">Climate Zone:</span>
-                    <span className="value">{formData.weatherData.climate_zone || 'Not available'}</span>
-                  </div>
-                  
-                  <div className="weather-data-item">
-                    <span className="label">Average Temperature:</span>
+                    <span className="label">Average Temperature: </span>
                     <span className="value">
                       {formData.weatherData.average_temperature ? 
                         `${formData.weatherData.average_temperature}°C` : 
@@ -1751,7 +1746,7 @@ function App() {
                   </div>
                   
                   <div className="weather-data-item">
-                    <span className="label">Average Rainfall:</span>
+                    <span className="label">Average Rainfall: </span>
                     <span className="value">
                       {formData.weatherData.average_rainfall ? 
                         `${formData.weatherData.average_rainfall} mm/day` : 
@@ -1760,7 +1755,7 @@ function App() {
                   </div>
                   
                   <div className="weather-data-item">
-                    <span className="label">Average Wind Speed:</span>
+                    <span className="label">Average Wind Speed: </span>
                     <span className="value">
                       {formData.weatherData.average_wind_speed ? 
                         `${formData.weatherData.average_wind_speed} m/s` : 
@@ -1769,7 +1764,7 @@ function App() {
                   </div>
                   
                   <div className="weather-data-item">
-                    <span className="label">Recommended Rain Defense Class:</span>
+                    <span className="label">Recommended Rain Defense Class: </span>
                     {(() => {
                       const rainDefenseInfo = determineRainDefenseClass(formData);
                       return (
@@ -1780,11 +1775,11 @@ function App() {
                           </span>
                           <div className="rain-class-details">
                             <div className="rain-class-factor">
-                              <span className="factor-label">Application-based:</span> 
+                              <span className="factor-label">Application-based: </span> 
                               <span className="factor-value">{rainDefenseInfo.applicationClass}</span>
                             </div>
                             <div className="rain-class-factor">
-                              <span className="factor-label">Weather-based:</span> 
+                              <span className="factor-label">Weather-based: </span> 
                               <span className="factor-value">{rainDefenseInfo.weatherClass}</span>
                             </div>
                             <div className="rain-class-standard">
@@ -1823,7 +1818,6 @@ function App() {
             </div>
             
             <div className="summary-section">
-              <h3>Initial Louver Recommendations</h3>
               {recommendedLouvers.length > 0 ? (
                 <div className="recommendations-section">
                   <h3>Recommended Louver Solutions</h3>
